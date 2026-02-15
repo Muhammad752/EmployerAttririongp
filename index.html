@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attrition Risk Calculator</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#111a2e; --muted:#9fb0d0; --text:#e7eefc;
+      --border: rgba(159,176,208,.18);
+    }
+    *{ box-sizing:border-box; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    body{ margin:0; background:linear-gradient(180deg,#070b14,var(--bg)); color:var(--text); }
+    .wrap{ max-width:1100px; margin:0 auto; padding:22px 14px 60px; }
+    h1{ margin:0 0 6px; font-size:20px; }
+    .sub{ margin:0 0 14px; color:var(--muted); font-size:12px; line-height:1.4; }
+    .grid{ display:grid; grid-template-columns: 1.25fr .75fr; gap:14px; }
+    @media (max-width:900px){ .grid{ grid-template-columns:1fr; } }
+    .card{
+      background:rgba(17,26,46,.9);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:14px;
+      min-height: 220px;
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    .meta{ color:var(--muted); font-size:12px; margin-bottom:10px; }
+    .fields{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    @media (max-width:600px){ .fields{ grid-template-columns:1fr; } }
+    label{ display:block; font-size:12px; color:var(--muted); margin:0 0 6px; }
+    input, select{
+      width:100%;
+      padding:10px;
+      border-radius:12px;
+      border:1px solid rgba(159,176,208,.25);
+      background:#0b1220;
+      color:var(--text);
+      outline:none;
+    }
+    input:focus, select:focus{ border-color:rgba(106,168,255,.55); box-shadow:0 0 0 4px rgba(106,168,255,.10); }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+    button{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(159,176,208,.25);
+      background:transparent;
+      color:var(--text);
+      cursor:pointer;
+      font-weight:700;
+    }
+    button:hover{ border-color:rgba(106,168,255,.5); }
+    .status{ color:var(--muted); font-size:12px; }
+    .big{ font-size:34px; font-weight:900; margin:8px 0 10px; }
+    .bar{ height:10px; border-radius:999px; background:rgba(159,176,208,.15); overflow:hidden; border:1px solid rgba(159,176,208,.18); }
+    .fill{ height:100%; width:0%; background:linear-gradient(90deg,#4ade80,#fbbf24,#ff6a6a); transition:width .2s ease; }
+    .pill{ display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid rgba(159,176,208,.22); color:var(--muted); font-size:12px; }
+    pre{
+      margin:10px 0 0;
+      padding:10px;
+      border-radius:12px;
+      background:#0b1220;
+      border:1px solid rgba(159,176,208,.18);
+      overflow:auto;
+      font-size:12px;
+      color:#cfe0ff;
+      max-height: 240px;
+    }
+    .warn{
+      margin-top:10px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+    .error{ color:#ffb4b4; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1>Attrition Risk Calculator</h1>
+    <p class="sub">
+      Runs fully offline (no server). Inputs are generated from the embedded <b>model_bundle.json</b>.
+      One-hot encoding + MinMax scaling are reproduced to match training.
+    </p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="meta" id="meta">Loading model bundle…</div>
+        <div class="fields" id="fields"></div>
+
+        <div class="row">
+          <button id="btnCalc" type="button">Calculate</button>
+          <button id="btnReset" type="button">Reset</button>
+          <span class="status" id="status"></span>
+        </div>
+
+        <div class="warn">
+          Governance note: avoid collecting personal identifiers. This calculator is for demo/education.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="pill">Predicted probability (Attrition=1)</div>
+        <div class="big" id="probText">—</div>
+        <div class="bar"><div class="fill" id="probFill"></div></div>
+
+        <div class="row" style="margin-top:12px;">
+          <div class="status" id="decision">—</div>
+        </div>
+
+        <pre id="debug">—</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       EMBED YOUR model_bundle.json BELOW (NO fetch, NO CORS)
+       ====================================================== -->
+  <script id="bundle" type="application/json">
+{
+  "cat_cols": [
+    "BusinessTravel",
+    "Department",
+    "EducationField",
+    "Gender",
+    "JobRole",
+    "MaritalStatus"
+  ],
+  "ohe_categories": {
+    "BusinessTravel": [
+      "Non-Travel",
+      "Travel_Frequently",
+      "Travel_Rarely"
+    ],
+    "Department": [
+      "Human Resources",
+      "Research & Development",
+      "Sales"
+    ],
+    "EducationField": [
+      "Human Resources",
+      "Life Sciences",
+      "Marketing",
+      "Medical",
+      "Other",
+      "Technical Degree"
+    ],
+    "Gender": [
+      "Female",
+      "Male"
+    ],
+    "JobRole": [
+      "Healthcare Representative",
+      "Human Resources",
+      "Laboratory Technician",
+      "Manager",
+      "Manufacturing Director",
+      "Research Director",
+      "Research Scientist",
+      "Sales Executive",
+      "Sales Representative"
+    ],
+    "MaritalStatus": [
+      "Divorced",
+      "Married",
+      "Single"
+    ]
+  },
+  "feature_names": [
+    "BusinessTravel_Non-Travel",
+    "BusinessTravel_Travel_Frequently",
+    "BusinessTravel_Travel_Rarely",
+    "Department_Human Resources",
+    "Department_Research & Development",
+    "Department_Sales",
+    "EducationField_Human Resources",
+    "EducationField_Life Sciences",
+    "EducationField_Marketing",
+    "EducationField_Medical",
+    "EducationField_Other",
+    "EducationField_Technical Degree",
+    "Gender_Female",
+    "Gender_Male",
+    "JobRole_Healthcare Representative",
+    "JobRole_Human Resources",
+    "JobRole_Laboratory Technician",
+    "JobRole_Manager",
+    "JobRole_Manufacturing Director",
+    "JobRole_Research Director",
+    "JobRole_Research Scientist",
+    "JobRole_Sales Executive",
+    "JobRole_Sales Representative",
+    "MaritalStatus_Divorced",
+    "MaritalStatus_Married",
+    "MaritalStatus_Single"
+  ],
+  "scaler_min": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "scaler_scale": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "intercept": -1.9033881700670177,
+  "coef": [
+    -0.7091477145422111,
+    0.6460253929064466,
+    0.032201542823139286,
+    -0.16250817928854905,
+    -0.20555429778383436,
+    0.3371416982597538,
+    0.7864738014323529,
+    -0.23007668072313842,
+    0.051532093881513745,
+    -0.2539673562663517,
+    -0.5964746565865654,
+    0.21159201944956416,
+    -0.0979515860194719,
+    0.06703080720684418,
+    -0.6702449738957634,
+    0.5157033985972417,
+    1.1360055411721208,
+    -0.530855313177134,
+    -0.45555025111654185,
+    -1.1435223194553017,
+    0.17223984869200037,
+    0.04769918488048252,
+    0.8976041054902691,
+    -0.33106163951104206,
+    -0.32270833744465643,
+    0.6228491981430712
+  ],
+  "threshold": 0.5
+}
+  </script>
+
+  <script src="./app.js"></script>
+</body>
+</html>
